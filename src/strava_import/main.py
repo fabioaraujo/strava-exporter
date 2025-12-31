@@ -97,7 +97,8 @@ def main():
         
         # Buscar atividades
         print("\n⏳ Buscando atividades...")
-        activities = client.get_all_activities(max_activities=100)  # Limite de 100 para teste
+        print("   (Isso pode levar alguns minutos para muitas atividades...)")
+        activities = client.get_all_activities()  # Buscar todas as atividades
         print(f"✅ {len(activities)} atividades encontradas")
         
         if not activities:

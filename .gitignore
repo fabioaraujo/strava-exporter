@@ -50,3 +50,7 @@ htmlcov/
 # Environment variables
 .env
 .env.local
+
+# Generated Strava activity files
+strava_activities.md
+strava_by_type.md

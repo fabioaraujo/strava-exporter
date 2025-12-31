@@ -6,7 +6,17 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from strava_import.strava_api import StravaClient
-from strava_import.markdown_exporter import activities_to_markdown, activities_to_markdown_by_type
+from strava_import.markdown_exporter import (
+    activities_to_markdown, 
+    activities_to_markdown_by_type,
+    activities_to_markdown_by_year
+)
+from strava_import.cache import (
+    load_cache,
+    save_cache,
+    merge_activities,
+    get_new_activities_count
+)
 
 
 def setup_credentials():
@@ -95,28 +105,69 @@ def main():
         athlete = client.get_athlete()
         print(f"✅ Conectado como: {athlete['firstname']} {athlete['lastname']}")
         
-        # Buscar atividades
-        print("\n⏳ Buscando atividades...")
-        print("   (Isso pode levar alguns minutos para muitas atividades...)")
-        activities = client.get_all_activities()  # Buscar todas as atividades
-        print(f"✅ {len(activities)} atividades encontradas")
+        # Carregar cache
+        print("\n⏳ Verificando cache local...")
+        cache = load_cache()
+        cached_activities = cache.get("activities", [])
+        
+        if cached_activities:
+            print(f"💾 {len(cached_activities)} atividades no cache")
+            last_update = cache.get("last_update", "desconhecida")
+            print(f"   Última atualização: {last_update}")
+            
+            # Perguntar se quer atualizar
+            response = input("\nDeseja buscar novas atividades? (s/n): ").lower()
+            
+            if response != 's':
+                print("\n📊 Usando atividades do cache...")
+                activities = cached_activities
+            else:
+                # Buscar apenas atividades recentes (última página)
+                print("\n⏳ Buscando novas atividades...")
+                new_activities = client.get_activities(per_page=200, page=1)
+                
+                # Mesclar com cache
+                activities = merge_activities(cached_activities, new_activities)
+                new_count = get_new_activities_count(cached_activities, activities)
+                
+                if new_count > 0:
+                    print(f"✅ {new_count} nova(s) atividade(s) encontrada(s)")
+                    save_cache(activities)
+                else:
+                    print(f"✅ Nenhuma atividade nova")
+        else:
+            print("📥 Nenhum cache encontrado. Buscando todas as atividades...")
+            print("   (Isso pode levar alguns minutos para muitas atividades...)")
+            
+            # Buscar todas as atividades
+            activities = client.get_all_activities()
+            print(f"✅ {len(activities)} atividades encontradas")
+            
+            # Salvar no cache
+            save_cache(activities)
         
         if not activities:
             print("\n⚠️  Nenhuma atividade encontrada.")
             return
         
         # Exportar para markdown
-        print("\n⏳ Exportando para Markdown...")
+        print(f"\n⏳ Exportando {len(activities)} atividades para Markdown...")
         
-        # Arquivo geral
+        # Arquivos por ano (novo formato principal)
+        files_by_year = activities_to_markdown_by_year(activities)
+        print(f"✅ Arquivos por ano criados no diretório 'atividades/'")
+        print(f"   📁 {len(files_by_year)} arquivos gerados")
+        
+        # Arquivo geral (mantido para compatibilidade)
         output_file = activities_to_markdown(activities)
-        print(f"✅ Arquivo criado: {output_file}")
+        print(f"✅ Arquivo geral: {output_file}")
         
-        # Arquivo por tipo
+        # Arquivo por tipo (mantido para compatibilidade)
         output_file_by_type = activities_to_markdown_by_type(activities)
-        print(f"✅ Arquivo criado: {output_file_by_type}")
+        print(f"✅ Arquivo por tipo: {output_file_by_type}")
         
         print("\n🎉 Importação concluída com sucesso!")
+        print(f"\n📖 Veja o índice em: atividades/README.md")
         
     except Exception as e:
         print(f"\n❌ Erro: {e}")

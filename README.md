@@ -5,9 +5,11 @@ Projeto para importação e análise de dados do Strava com exportação para Ma
 ## ✨ Funcionalidades
 
 - 🔐 Autenticação OAuth2 com a API do Strava
-- 📥 Download de todas as suas atividades
+- 📥 Download incremental de atividades (busca apenas novas)
+- 💾 Sistema de cache local para não baixar tudo sempre
+- 📅 Arquivos separados por ano para melhor organização
 - 📊 Exportação para Markdown em formato de tabela
-- 📈 Estatísticas gerais (distância total, tempo, médias)
+- 📈 Estatísticas gerais e por ano (distância, tempo, médias)
 - 🏃 Agrupamento por tipo de atividade (corrida, ciclismo, etc)
 - ⚡ Cálculo automático de pace, duração formatada e muito mais
 
@@ -102,9 +104,30 @@ Formate o código:
 └── USAGE.md                      # Guia detalhado de uso
 ```
 
-## 📊 Exemplo de Saída
+## 📊 Arquivos Gerados
 
-O script gera tabelas Markdown como:
+### Organização por Ano (Principal)
+O script cria um diretório `atividades/` com:
+- **README.md** - Índice com resumo de todos os anos
+- **strava_2025.md** - Atividades de 2025
+- **strava_2024.md** - Atividades de 2024
+- E assim por diante...
+
+Cada arquivo anual contém:
+- Estatísticas do ano
+- Resumo por tipo de atividade
+- Tabela completa de todas as atividades
+
+### Arquivos Gerais (Compatibilidade)
+- **strava_activities.md** - Todas as atividades em uma tabela
+- **strava_by_type.md** - Atividades agrupadas por tipo
+
+### Sistema de Cache
+- **strava_cache.json** - Cache local das atividades
+- Na primeira execução: busca todas as atividades
+- Nas próximas: pergunta se quer buscar apenas novas
+
+### Exemplo de Tabela
 
 | Data | Nome | Tipo | Distância | Duração | Pace | Elevação | Kudos |
 |------|------|------|-----------|---------|------|----------|-------|

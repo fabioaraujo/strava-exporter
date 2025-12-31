@@ -6,11 +6,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from strava_exporter.strava_api import StravaClient
-from strava_exporter.markdown_exporter import (
-    activities_to_markdown, 
-    activities_to_markdown_by_type,
-    activities_to_markdown_by_year
-)
+from strava_exporter.markdown_exporter import activities_to_markdown_by_year
 from strava_exporter.cache import (
     load_cache,
     save_cache,
@@ -153,18 +149,9 @@ def main():
         # Exportar para markdown
         print(f"\n⏳ Exportando {len(activities)} atividades para Markdown...")
         
-        # Arquivos por ano (novo formato principal)
+        # Arquivos por ano
         files_by_year = activities_to_markdown_by_year(activities)
-        print(f"✅ Arquivos por ano criados no diretório 'atividades/'")
-        print(f"   📁 {len(files_by_year)} arquivos gerados")
-        
-        # Arquivo geral (mantido para compatibilidade)
-        output_file = activities_to_markdown(activities)
-        print(f"✅ Arquivo geral: {output_file}")
-        
-        # Arquivo por tipo (mantido para compatibilidade)
-        output_file_by_type = activities_to_markdown_by_type(activities)
-        print(f"✅ Arquivo por tipo: {output_file_by_type}")
+        print(f"✅ {len(files_by_year)} arquivos gerados no diretório 'atividades/'")
         
         print("\n🎉 Exportação concluída com sucesso!")
         print(f"\n📖 Veja o índice em: atividades/README.md")

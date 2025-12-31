@@ -106,7 +106,7 @@ Formate o código:
 
 ## 📊 Arquivos Gerados
 
-### Organização por Ano (Principal)
+### Organização por Ano
 O script cria um diretório `atividades/` com:
 - **README.md** - Índice com resumo de todos os anos
 - **strava_2025.md** - Atividades de 2025
@@ -117,10 +117,6 @@ Cada arquivo anual contém:
 - Estatísticas do ano
 - Resumo por tipo de atividade
 - Tabela completa de todas as atividades
-
-### Arquivos Gerais (Compatibilidade)
-- **strava_activities.md** - Todas as atividades em uma tabela
-- **strava_by_type.md** - Atividades agrupadas por tipo
 
 ### Sistema de Cache
 - **strava_cache.json** - Cache local das atividades

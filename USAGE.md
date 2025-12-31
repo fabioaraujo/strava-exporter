@@ -61,10 +61,12 @@ Copie apenas a parte: `abc123def456`
 
 ## 📊 Arquivos Gerados
 
-Após a execução, serão criados:
+Após a execução, serão criados arquivos no diretório `atividades/`:
 
-- **strava_activities.md** - Todas as atividades em formato tabular
-- **strava_by_type.md** - Atividades agrupadas por tipo (corrida, ciclismo, etc)
+- **README.md** - Índice geral com resumo de todos os anos
+- **strava_2025.md** - Atividades de 2025
+- **strava_2024.md** - Atividades de 2024
+- E assim por diante para cada ano
 
 ## 📝 Formato da Tabela
 

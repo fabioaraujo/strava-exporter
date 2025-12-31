@@ -52,7 +52,5 @@ htmlcov/
 .env.local
 
 # Generated Strava activity files
-strava_activities.md
-strava_by_type.md
 strava_cache.json
 atividades/

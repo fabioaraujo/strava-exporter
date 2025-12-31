@@ -45,13 +45,13 @@ uv sync
 Execute o script principal:
 
 ```bash
-uv run hello.py
+uv run strava-import
 ```
 
 Ou com o ambiente ativado:
 
 ```bash
-python hello.py
+strava-import
 ```
 
 ## 🛠️ Desenvolvimento
@@ -79,11 +79,14 @@ uv run ruff check .
 
 ```
 strava-import/
-├── .gitignore          # Arquivos ignorados pelo Git
-├── .python-version     # Versão do Python
-├── pyproject.toml      # Configurações do projeto
-├── README.md           # Este arquivo
-└── hello.py            # Script principal
+├── src/
+│   └── strava_import/
+│       ├── __init__.py     # Inicialização do pacote
+│       └── main.py         # Script principal
+├── .gitignore              # Arquivos ignorados pelo Git
+├── .python-version         # Versão do Python
+├── pyproject.toml          # Configurações do projeto
+└── README.md               # Este arquivo
 ```
 
 ## 📄 Licença

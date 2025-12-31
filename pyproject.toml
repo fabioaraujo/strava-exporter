@@ -9,6 +9,9 @@ authors = [
     { name = "Fabio", email = "your.email@example.com" }
 ]
 
+[project.scripts]
+strava-import = "strava_import.main:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
@@ -19,6 +22,9 @@ dev = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/strava_import"]
 
 [tool.black]
 line-length = 100

@@ -4,7 +4,10 @@ version = "0.1.0"
 description = "Importação e análise de dados do Strava"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "python-dotenv>=1.2.1",
+    "requests>=2.32.5",
+]
 authors = [
     { name = "Fabio", email = "your.email@example.com" }
 ]

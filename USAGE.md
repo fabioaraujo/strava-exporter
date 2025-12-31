@@ -1,6 +1,6 @@
-# Guia de Uso - Strava Import
+# Guia de Uso - Strava Exporter
 
-Este guia explica como configurar e usar o Strava Import para baixar suas atividades.
+Este guia explica como configurar e usar o Strava Exporter para baixar suas atividades.
 
 ## 📋 Pré-requisitos
 
@@ -15,7 +15,7 @@ Este guia explica como configurar e usar o Strava Import para baixar suas ativid
 1. Acesse: https://www.strava.com/settings/api
 2. Clique em "Create App" ou "My API Application"
 3. Preencha os campos:
-   - **Application Name:** Seu nome de app (ex: "Meu Importador")
+   - **Application Name:** Seu nome de app (ex: "Meu Exportador")
    - **Category:** Escolha uma categoria
    - **Club:** Deixe em branco
    - **Website:** http://localhost
@@ -39,7 +39,7 @@ Este guia explica como configurar e usar o Strava Import para baixar suas ativid
 ### 3. Executar o Script
 
 ```bash
-uv run strava-import
+uv run strava-exporter
 ```
 
 ### 4. Processo de Autorização (primeira vez)
@@ -82,7 +82,7 @@ As tabelas Markdown incluem:
 
 ### Limitar número de atividades
 
-Edite o arquivo [src/strava_import/main.py](src/strava_import/main.py#L77):
+Edite o arquivo [src/strava_exporter/main.py](src/strava_exporter/main.py#L77):
 
 ```python
 activities = client.get_all_activities(max_activities=50)  # Buscar apenas 50
@@ -99,7 +99,7 @@ activities = client.get_all_activities()  # Sem limite
 Os tokens do Strava expiram após algumas horas. Se receber erro de autenticação:
 
 1. Delete a linha `STRAVA_ACCESS_TOKEN` do arquivo `.env`
-2. Execute novamente: `uv run strava-import`
+2. Execute novamente: `uv run strava-exporter`
 3. O processo de autorização será reiniciado
 
 ## 🆘 Problemas Comuns

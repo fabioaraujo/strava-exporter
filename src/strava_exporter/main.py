@@ -1,17 +1,17 @@
-"""Script principal para importar atividades do Strava."""
+"""Script principal para exportar atividades do Strava."""
 
 import os
 import sys
 from pathlib import Path
 from dotenv import load_dotenv
 
-from strava_import.strava_api import StravaClient
-from strava_import.markdown_exporter import (
+from strava_exporter.strava_api import StravaClient
+from strava_exporter.markdown_exporter import (
     activities_to_markdown, 
     activities_to_markdown_by_type,
     activities_to_markdown_by_year
 )
-from strava_import.cache import (
+from strava_exporter.cache import (
     load_cache,
     save_cache,
     merge_activities,
@@ -80,7 +80,7 @@ def get_authorization():
 
 def main():
     """Função principal."""
-    print("🚴 Strava Import - Importador de Atividades")
+    print("🚴 Strava Exporter - Exportador de Atividades")
     print("=" * 50)
     
     # Verificar se há token
@@ -166,7 +166,7 @@ def main():
         output_file_by_type = activities_to_markdown_by_type(activities)
         print(f"✅ Arquivo por tipo: {output_file_by_type}")
         
-        print("\n🎉 Importação concluída com sucesso!")
+        print("\n🎉 Exportação concluída com sucesso!")
         print(f"\n📖 Veja o índice em: atividades/README.md")
         
     except Exception as e:

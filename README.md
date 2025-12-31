@@ -1,6 +1,6 @@
-# Strava Import
+# Strava Exporter
 
-Projeto para importação e análise de dados do Strava com exportação para Markdown em formato tabular.
+Projeto para exportação de atividades do Strava para Markdown em formato tabular.
 
 ## ✨ Funcionalidades
 
@@ -34,7 +34,7 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 1. Clone o repositório:
 ```bash
 git clone <seu-repositório>
-cd strava-import
+cd strava-exporter
 ```
 
 2. Crie o ambiente virtual e instale as dependências:
@@ -67,7 +67,7 @@ cp .env.example .env
 ### 3. Executar
 
 ```bash
-uv run strava-import
+uv run strava-exporter
 ```
 
 O script irá guiá-lo pelo processo de autorização OAuth2.
@@ -134,9 +134,9 @@ Cada arquivo anual contém:
 | 30/12/2025 08:30 | Morning Run | Run | 10.50 km | 00:52:30 | 5:00 /km | 120 m | 15 |
 | 29/12/2025 18:00 | Evening Ride | Ride | 35.20 km | 01:25:15 | N/A | 450 m | 8 |
 ```
-strava-import/
+strava-exporter/
 ├── src/
-│   └── strava_import/
+│   └── strava_exporter/
 │       ├── __init__.py     # Inicialização do pacote
 │       └── main.py         # Script principal
 ├── .gitignore              # Arquivos ignorados pelo Git

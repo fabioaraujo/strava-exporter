@@ -15,6 +15,37 @@ from strava_exporter.cache import (
 )
 
 
+def update_env_tokens(access_token: str, refresh_token: str):
+    """
+    Atualiza os tokens no arquivo .env.
+    
+    Args:
+        access_token: Novo access token
+        refresh_token: Novo refresh token
+    """
+    env_path = Path(".env")
+    
+    if not env_path.exists():
+        return
+    
+    try:
+        with open(env_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        
+        with open(env_path, "w", encoding="utf-8") as f:
+            for line in lines:
+                if line.startswith("STRAVA_ACCESS_TOKEN="):
+                    f.write(f"STRAVA_ACCESS_TOKEN={access_token}\n")
+                elif line.startswith("STRAVA_REFRESH_TOKEN="):
+                    f.write(f"STRAVA_REFRESH_TOKEN={refresh_token}\n")
+                else:
+                    f.write(line)
+        
+        print("💾 Tokens atualizados no arquivo .env")
+    except Exception as e:
+        print(f"⚠️  Erro ao atualizar .env: {e}")
+
+
 def setup_credentials():
     """Configura e valida as credenciais do Strava."""
     load_dotenv()
@@ -22,6 +53,7 @@ def setup_credentials():
     client_id = os.getenv("STRAVA_CLIENT_ID")
     client_secret = os.getenv("STRAVA_CLIENT_SECRET")
     access_token = os.getenv("STRAVA_ACCESS_TOKEN")
+    refresh_token = os.getenv("STRAVA_REFRESH_TOKEN")
     
     if not client_id or not client_secret:
         print("❌ Credenciais não encontradas!")
@@ -31,14 +63,15 @@ def setup_credentials():
         print("   STRAVA_CLIENT_ID=seu_client_id")
         print("   STRAVA_CLIENT_SECRET=seu_client_secret")
         print("   STRAVA_ACCESS_TOKEN=seu_access_token (opcional)")
+        print("   STRAVA_REFRESH_TOKEN=seu_refresh_token (opcional)")
         sys.exit(1)
     
-    return client_id, client_secret, access_token
+    return client_id, client_secret, access_token, refresh_token
 
 
 def get_authorization():
     """Guia o usuário pelo processo de autorização."""
-    client_id, client_secret, _ = setup_credentials()
+    client_id, client_secret, _, _ = setup_credentials()
     client = StravaClient(client_id, client_secret)
     
     print("\n🔐 Processo de Autorização OAuth2")
@@ -68,7 +101,7 @@ def get_authorization():
         if refresh_token:
             print(f"   STRAVA_REFRESH_TOKEN={refresh_token}")
         
-        return access_token
+        return access_token, refresh_token
     except Exception as e:
         print(f"\n❌ Erro ao obter token: {e}")
         sys.exit(1)
@@ -80,20 +113,26 @@ def main():
     print("=" * 50)
     
     # Verificar se há token
-    client_id, client_secret, access_token = setup_credentials()
+    client_id, client_secret, access_token, refresh_token = setup_credentials()
     
     if not access_token:
         print("\n⚠️  Access token não encontrado.")
         response = input("Deseja iniciar o processo de autorização? (s/n): ").lower()
         
         if response == 's':
-            access_token = get_authorization()
+            access_token, refresh_token = get_authorization()
         else:
             print("\n❌ Não é possível continuar sem access token.")
             sys.exit(1)
     
-    # Criar cliente
-    client = StravaClient(client_id, client_secret, access_token)
+    # Criar cliente com callback para salvar tokens
+    client = StravaClient(
+        client_id, 
+        client_secret, 
+        access_token, 
+        refresh_token,
+        token_update_callback=update_env_tokens
+    )
     
     try:
         # Obter informações do atleta

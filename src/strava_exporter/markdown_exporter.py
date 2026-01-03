@@ -552,11 +552,111 @@ def activities_to_markdown_by_year(activities: List[Dict[str, Any]], output_dir:
         
         created_files.append(str(output_file))
     
+    # Criar arquivo de estatísticas anuais
+    create_annual_statistics_file(activities_by_year, output_path)
+    created_files.append(str(output_path / "estatisticas_anuais.md"))
+    
     # Criar arquivo índice
     create_index_file(activities_by_year, output_path)
     created_files.append(str(output_path / "README.md"))
     
     return created_files
+
+
+def create_annual_statistics_file(activities_by_year: Dict[int, List[Dict[str, Any]]], output_path: Path) -> None:
+    """
+    Cria arquivo com estatísticas anuais e gráficos.
+    
+    Args:
+        activities_by_year: Atividades agrupadas por ano
+        output_path: Caminho do diretório de saída
+    """
+    markdown = "# Estatísticas Anuais do Strava\n\n"
+    markdown += "Visão geral das atividades ao longo dos anos.\n\n"
+    
+    # Tabela resumo
+    markdown += "## Resumo Geral\n\n"
+    markdown += "| Ano | Total de Atividades | Distância Total | Tempo Total |\n"
+    markdown += "|-----|---------------------|-----------------|-------------|\n"
+    
+    years_data = []
+    for year in sorted(activities_by_year.keys()):
+        year_activities = activities_by_year[year]
+        total_distance = sum(a.get("distance", 0) for a in year_activities)
+        total_time = sum(a.get("moving_time", 0) for a in year_activities)
+        
+        years_data.append({
+            "year": year,
+            "count": len(year_activities),
+            "distance": total_distance / 1000,  # km
+            "time": total_time / 3600  # horas
+        })
+        
+        markdown += f"| {year} | {len(year_activities)} | {format_distance(total_distance)} | {format_duration(total_time)} |\n"
+    
+    # Gráfico de distância
+    markdown += "\n## Gráfico de Distância Total por Ano\n\n"
+    markdown += "```mermaid\n"
+    markdown += "xychart-beta\n"
+    markdown += '    title "Distância Total por Ano (km)"\n'
+    markdown += f"    x-axis [{', '.join(str(d['year']) for d in years_data)}]\n"
+    max_distance = max(d['distance'] for d in years_data)
+    markdown += f"    y-axis \"Distância (km)\" 0 --> {int(max_distance * 1.1)}\n"
+    markdown += f"    bar [{', '.join(str(int(d['distance'])) for d in years_data)}]\n"
+    markdown += "```\n\n"
+    
+    # Gráfico de tempo
+    markdown += "## Gráfico de Tempo Total por Ano\n\n"
+    markdown += "```mermaid\n"
+    markdown += "xychart-beta\n"
+    markdown += '    title "Tempo Total por Ano (horas)"\n'
+    markdown += f"    x-axis [{', '.join(str(d['year']) for d in years_data)}]\n"
+    max_time = max(d['time'] for d in years_data)
+    markdown += f"    y-axis \"Tempo (horas)\" 0 --> {int(max_time * 1.1)}\n"
+    markdown += f"    bar [{', '.join(str(int(d['time'])) for d in years_data)}]\n"
+    markdown += "```\n\n"
+    
+    # Gráfico de atividades
+    markdown += "## Gráfico de Número de Atividades por Ano\n\n"
+    markdown += "```mermaid\n"
+    markdown += "xychart-beta\n"
+    markdown += '    title "Número de Atividades por Ano"\n'
+    markdown += f"    x-axis [{', '.join(str(d['year']) for d in years_data)}]\n"
+    max_count = max(d['count'] for d in years_data)
+    markdown += f"    y-axis \"Atividades\" 0 --> {int(max_count * 1.1)}\n"
+    markdown += f"    bar [{', '.join(str(d['count']) for d in years_data)}]\n"
+    markdown += "```\n\n"
+    
+    # Gráfico de evolução combinado
+    markdown += "## Evolução Anual\n\n"
+    markdown += "```mermaid\n"
+    markdown += "xychart-beta\n"
+    markdown += '    title "Evolução: Distância vs Tempo"\n'
+    markdown += f"    x-axis [{', '.join(str(d['year']) for d in years_data)}]\n"
+    max_value = max(max_distance, max_time * 10)
+    markdown += f"    y-axis \"Escala normalizada\" 0 --> {int(max_value * 1.1)}\n"
+    markdown += f"    line \"Distância (km)\" [{', '.join(str(int(d['distance'])) for d in years_data)}]\n"
+    markdown += f"    line \"Tempo (horas)\" [{', '.join(str(int(d['time'])) for d in years_data)}]\n"
+    markdown += "```\n\n"
+    
+    # Insights
+    markdown += "## Insights\n\n"
+    max_activities_year = max(years_data, key=lambda x: x['count'])
+    max_distance_year = max(years_data, key=lambda x: x['distance'])
+    max_time_year = max(years_data, key=lambda x: x['time'])
+    
+    markdown += f"- **Pico de atividades:** {max_activities_year['year']} com {max_activities_year['count']} atividades registradas\n"
+    markdown += f"- **Maior distância:** {max_distance_year['year']} com {max_distance_year['distance']:.2f} km percorridos\n"
+    markdown += f"- **Maior tempo:** {max_time_year['year']} com {int(max_time_year['time'])}:{int((max_time_year['time'] % 1) * 60):02d}:00 horas de atividade\n"
+    
+    if len(years_data) >= 3:
+        recent_years = years_data[-3:]
+        avg_activities = sum(d['count'] for d in recent_years) / len(recent_years)
+        markdown += f"- **Média recente ({recent_years[0]['year']}-{recent_years[-1]['year']}):** {avg_activities:.0f} atividades por ano\n"
+    
+    # Salvar arquivo
+    with open(output_path / "estatisticas_anuais.md", "w", encoding="utf-8") as f:
+        f.write(markdown)
 
 
 def create_index_file(activities_by_year: Dict[int, List[Dict[str, Any]]], output_path: Path) -> None:
@@ -594,6 +694,10 @@ def create_index_file(activities_by_year: Dict[int, List[Dict[str, Any]]], outpu
     markdown += f"- **Tempo total:** {format_duration(total_time)}\n"
     markdown += f"- **Média por atividade:** {format_distance(total_distance / len(all_activities))}\n"
     markdown += f"- **Anos ativos:** {len(activities_by_year)}\n\n"
+    
+    # Link para estatísticas anuais
+    markdown += "## Visualizações\n\n"
+    markdown += "- 📊 [Estatísticas Anuais com Gráficos](estatisticas_anuais.md)\n\n"
     
     # Adicionar recordes gerais
     all_time_records = calculate_records(all_activities)

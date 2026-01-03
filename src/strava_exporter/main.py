@@ -194,6 +194,7 @@ def main():
         
         print("\n🎉 Exportação concluída com sucesso!")
         print(f"\n📖 Veja o índice em: atividades/README.md")
+        print(f"📊 Estatísticas anuais: atividades/estatisticas_anuais.md")
         
     except Exception as e:
         print(f"\n❌ Erro: {e}")

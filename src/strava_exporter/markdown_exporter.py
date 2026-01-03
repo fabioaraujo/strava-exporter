@@ -35,6 +35,201 @@ def format_pace(meters: float, seconds: int) -> str:
     return f"{pace_minutes}:{pace_secs:02d} /km"
 
 
+def calculate_pace_seconds(meters: float, seconds: int) -> float:
+    """Calcula o pace em segundos por km."""
+    if meters == 0:
+        return float('inf')
+    km = meters / 1000
+    return seconds / km
+
+
+def calculate_records(activities: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    """
+    Calcula recordes pessoais por tipo de atividade.
+    
+    Args:
+        activities: Lista de atividades
+        
+    Returns:
+        Dicionário com recordes por tipo de atividade
+    """
+    records_by_type: Dict[str, Dict[str, Any]] = {}
+    
+    for activity in activities:
+        sport_type = activity.get("sport_type", activity.get("type", "Outro"))
+        distance = activity.get("distance", 0)
+        moving_time = activity.get("moving_time", 0)
+        elevation = activity.get("total_elevation_gain", 0)
+        
+        if sport_type not in records_by_type:
+            records_by_type[sport_type] = {
+                "max_distance": {"value": 0, "activity": None},
+                "max_time": {"value": 0, "activity": None},
+                "max_elevation": {"value": 0, "activity": None},
+                "best_pace": {"value": float('inf'), "activity": None},
+            }
+        
+        records = records_by_type[sport_type]
+        
+        # Maior distância
+        if distance > records["max_distance"]["value"]:
+            records["max_distance"]["value"] = distance
+            records["max_distance"]["activity"] = activity
+        
+        # Maior tempo
+        if moving_time > records["max_time"]["value"]:
+            records["max_time"]["value"] = moving_time
+            records["max_time"]["activity"] = activity
+        
+        # Maior elevação
+        if elevation > records["max_elevation"]["value"]:
+            records["max_elevation"]["value"] = elevation
+            records["max_elevation"]["activity"] = activity
+        
+        # Melhor pace (apenas para atividades com distância)
+        if distance > 0:
+            pace = calculate_pace_seconds(distance, moving_time)
+            if pace < records["best_pace"]["value"]:
+                records["best_pace"]["value"] = pace
+                records["best_pace"]["activity"] = activity
+    
+    return records_by_type
+
+
+def format_records_markdown(records_by_type: Dict[str, Dict[str, Any]], title: str = "Recordes Pessoais") -> str:
+    """
+    Formata recordes em markdown.
+    
+    Args:
+        records_by_type: Dicionário de recordes por tipo
+        title: Título da seção
+        
+    Returns:
+        String markdown formatada
+    """
+    if not records_by_type:
+        return ""
+    
+    markdown = f"## {title}\n\n"
+    
+    for sport_type in sorted(records_by_type.keys()):
+        records = records_by_type[sport_type]
+        markdown += f"### {sport_type}\n\n"
+        
+        # Maior distância
+        if records["max_distance"]["activity"]:
+            act = records["max_distance"]["activity"]
+            markdown += f"- **Maior Distância:** {format_distance(act.get('distance', 0))}"
+            markdown += f" - *{act.get('name', 'N/A')}* ({format_date(act.get('start_date', ''))})\n"
+        
+        # Maior tempo
+        if records["max_time"]["activity"]:
+            act = records["max_time"]["activity"]
+            markdown += f"- **Maior Tempo:** {format_duration(act.get('moving_time', 0))}"
+            markdown += f" - *{act.get('name', 'N/A')}* ({format_date(act.get('start_date', ''))})\n"
+        
+        # Maior elevação
+        if records["max_elevation"]["activity"]:
+            act = records["max_elevation"]["activity"]
+            elev = act.get('total_elevation_gain', 0)
+            if elev > 0:
+                markdown += f"- **Maior Elevação:** {elev:.0f} m"
+                markdown += f" - *{act.get('name', 'N/A')}* ({format_date(act.get('start_date', ''))})\n"
+        
+        # Melhor pace (se aplicável)
+        if records["best_pace"]["activity"] and records["best_pace"]["value"] != float('inf'):
+            act = records["best_pace"]["activity"]
+            distance = act.get('distance', 0)
+            moving_time = act.get('moving_time', 0)
+            if distance > 0:
+                pace = format_pace(distance, moving_time)
+                markdown += f"- **Melhor Pace:** {pace}"
+                markdown += f" - *{act.get('name', 'N/A')}* ({format_date(act.get('start_date', ''))})\n"
+        
+        markdown += "\n"
+    
+    return markdown
+
+
+def format_records_comparison(year_records: Dict[str, Dict[str, Any]], all_time_records: Dict[str, Dict[str, Any]], year: int) -> str:
+    """
+    Formata recordes em formato de tabela comparativa.
+    
+    Args:
+        year_records: Recordes do ano
+        all_time_records: Recordes de todos os tempos
+        year: Ano dos recordes
+        
+    Returns:
+        String markdown formatada
+    """
+    if not year_records and not all_time_records:
+        return ""
+    
+    markdown = f"## Recordes Pessoais\n\n"
+    
+    # Obter todos os tipos de atividade (do ano e gerais)
+    all_types = set(year_records.keys()) | set(all_time_records.keys())
+    
+    for sport_type in sorted(all_types):
+        markdown += f"### {sport_type}\n\n"
+        markdown += "| Métrica | Recorde de {0} | Recorde Geral (até {0}) |\n".format(year)
+        markdown += "|---------|----------------|------------------------|\n"
+        
+        year_rec = year_records.get(sport_type, {})
+        all_rec = all_time_records.get(sport_type, {})
+        
+        # Maior distância
+        year_dist = ""
+        if year_rec.get("max_distance", {}).get("activity"):
+            act = year_rec["max_distance"]["activity"]
+            year_dist = f"{format_distance(act.get('distance', 0))} - *{act.get('name', 'N/A')}* ({format_date(act.get('start_date', ''))})"
+        
+        all_dist = ""
+        if all_rec.get("max_distance", {}).get("activity"):
+            act = all_rec["max_distance"]["activity"]
+            all_dist = f"{format_distance(act.get('distance', 0))} - *{act.get('name', 'N/A')}* ({format_date(act.get('start_date', ''))})"
+        
+        if year_dist or all_dist:
+            markdown += f"| **Maior Distância** | {year_dist or 'N/A'} | {all_dist or 'N/A'} |\n"
+        
+        # Maior tempo
+        year_time = ""
+        if year_rec.get("max_time", {}).get("activity"):
+            act = year_rec["max_time"]["activity"]
+            year_time = f"{format_duration(act.get('moving_time', 0))} - *{act.get('name', 'N/A')}* ({format_date(act.get('start_date', ''))})"
+        
+        all_time = ""
+        if all_rec.get("max_time", {}).get("activity"):
+            act = all_rec["max_time"]["activity"]
+            all_time = f"{format_duration(act.get('moving_time', 0))} - *{act.get('name', 'N/A')}* ({format_date(act.get('start_date', ''))})"
+        
+        if year_time or all_time:
+            markdown += f"| **Maior Tempo** | {year_time or 'N/A'} | {all_time or 'N/A'} |\n"
+        
+        # Maior elevação
+        year_elev = ""
+        if year_rec.get("max_elevation", {}).get("activity"):
+            act = year_rec["max_elevation"]["activity"]
+            elev = act.get('total_elevation_gain', 0)
+            if elev > 0:
+                year_elev = f"{elev:.0f} m - *{act.get('name', 'N/A')}* ({format_date(act.get('start_date', ''))})"
+        
+        all_elev = ""
+        if all_rec.get("max_elevation", {}).get("activity"):
+            act = all_rec["max_elevation"]["activity"]
+            elev = act.get('total_elevation_gain', 0)
+            if elev > 0:
+                all_elev = f"{elev:.0f} m - *{act.get('name', 'N/A')}* ({format_date(act.get('start_date', ''))})"
+        
+        if year_elev or all_elev:
+            markdown += f"| **Maior Elevação** | {year_elev or 'N/A'} | {all_elev or 'N/A'} |\n"
+        
+        markdown += "\n"
+    
+    return markdown
+
+
 def format_date(date_str: str) -> str:
     """Formata a data da atividade."""
     dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
@@ -233,7 +428,23 @@ def activities_to_markdown_by_year(activities: List[Dict[str, Any]], output_dir:
             
             markdown += f"| {sport_type} | {len(type_activities)} | {format_distance(type_distance)} | {format_duration(type_time)} |\n"
         
-        markdown += "\n## Todas as Atividades\n\n"
+        markdown += "\n"
+        
+        # Calcular recordes do ano e gerais
+        year_records = calculate_records(year_activities)
+        
+        # Coletar todas as atividades até este ano (inclusive)
+        all_activities_until_year = []
+        for y in sorted(activities_by_year.keys()):
+            if y <= year:
+                all_activities_until_year.extend(activities_by_year[y])
+        
+        all_time_records = calculate_records(all_activities_until_year) if all_activities_until_year else {}
+        
+        # Usar formato de tabela comparativa
+        markdown += format_records_comparison(year_records, all_time_records, year)
+        
+        markdown += "## Todas as Atividades\n\n"
         markdown += "| Data | Nome | Tipo | Distância | Duração | Pace | Elevação | Kudos |\n"
         markdown += "|------|------|------|-----------|---------|------|----------|-------|\n"
         
@@ -302,7 +513,11 @@ def create_index_file(activities_by_year: Dict[int, List[Dict[str, Any]]], outpu
     markdown += f"- **Distância total:** {format_distance(total_distance)}\n"
     markdown += f"- **Tempo total:** {format_duration(total_time)}\n"
     markdown += f"- **Média por atividade:** {format_distance(total_distance / len(all_activities))}\n"
-    markdown += f"- **Anos ativos:** {len(activities_by_year)}\n"
+    markdown += f"- **Anos ativos:** {len(activities_by_year)}\n\n"
+    
+    # Adicionar recordes gerais
+    all_time_records = calculate_records(all_activities)
+    markdown += format_records_markdown(all_time_records, "Recordes Pessoais de Todos os Tempos")
     
     # Salvar índice
     with open(output_path / "README.md", "w", encoding="utf-8") as f:

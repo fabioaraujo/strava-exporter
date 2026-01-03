@@ -1,6 +1,6 @@
 """Módulo para autenticação e interação com a API do Strava."""
 
-import os
+import time
 import requests
 from typing import Optional, Dict, Any, Callable
 
@@ -107,13 +107,14 @@ class StravaClient:
         
         return token_data
     
-    def _make_request(self, method: str, endpoint: str, **kwargs) -> requests.Response:
+    def _make_request(self, method: str, endpoint: str, max_retries: int = 5, **kwargs) -> requests.Response:
         """
-        Faz uma requisição HTTP com renovação automática de token em caso de 401.
+        Faz uma requisição HTTP com renovação automática de token e retry em caso de rate limit.
         
         Args:
             method: Método HTTP (get, post, etc)
             endpoint: Endpoint da API
+            max_retries: Número máximo de tentativas em caso de 429
             **kwargs: Argumentos adicionais para requests
             
         Returns:
@@ -125,21 +126,41 @@ class StravaClient:
         headers = kwargs.pop("headers", {})
         headers["Authorization"] = f"Bearer {self.access_token}"
         
-        response = requests.request(method, f"{self.BASE_URL}/{endpoint}", headers=headers, **kwargs)
+        for attempt in range(max_retries):
+            response = requests.request(method, f"{self.BASE_URL}/{endpoint}", headers=headers, **kwargs)
+            
+            # Se receber 401, tentar renovar o token
+            if response.status_code == 401 and self.refresh_token:
+                print("🔄 Token expirado, renovando automaticamente...")
+                try:
+                    self.refresh_access_token()
+                    # Tentar novamente com o novo token
+                    headers["Authorization"] = f"Bearer {self.access_token}"
+                    response = requests.request(method, f"{self.BASE_URL}/{endpoint}", headers=headers, **kwargs)
+                    print("✅ Token renovado com sucesso!")
+                except Exception as e:
+                    print(f"❌ Erro ao renovar token: {e}")
+                    raise
+            
+            # Se receber 429 (Rate Limit), aguardar e tentar novamente
+            if response.status_code == 429:
+                retry_after = int(response.headers.get('Retry-After', 15 * 60))  # Default 15 min
+                wait_time = min(retry_after, 15 * 60)  # Máximo 15 minutos
+                
+                if attempt < max_retries - 1:
+                    print(f"⏸️  Rate limit atingido! Aguardando {wait_time}s antes de tentar novamente...")
+                    print(f"   (Tentativa {attempt + 1}/{max_retries})")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    print(f"❌ Rate limit atingido após {max_retries} tentativas")
+                    raise requests.exceptions.HTTPError(f"429 Rate Limit Exceeded after {max_retries} retries", response=response)
+            
+            # Para qualquer outro erro, lançar exceção
+            response.raise_for_status()
+            return response
         
-        # Se receber 401, tentar renovar o token
-        if response.status_code == 401 and self.refresh_token:
-            print("🔄 Token expirado, renovando automaticamente...")
-            try:
-                self.refresh_access_token()
-                # Tentar novamente com o novo token
-                headers["Authorization"] = f"Bearer {self.access_token}"
-                response = requests.request(method, f"{self.BASE_URL}/{endpoint}", headers=headers, **kwargs)
-                print("✅ Token renovado com sucesso!")
-            except Exception as e:
-                print(f"❌ Erro ao renovar token: {e}")
-                raise
-        
+        # Se chegou aqui, todas as tentativas falharam
         response.raise_for_status()
         return response
     
@@ -200,3 +221,17 @@ class StravaClient:
             page += 1
         
         return all_activities
+    
+    def get_activity_details(self, activity_id: int) -> Dict[str, Any]:
+        """
+        Obtém detalhes completos de uma atividade específica.
+        Inclui métricas adicionais como suffer_score, calories, watts, etc.
+        
+        Args:
+            activity_id: ID da atividade
+            
+        Returns:
+            Dados detalhados da atividade
+        """
+        response = self._make_request("get", f"activities/{activity_id}")
+        return response.json()

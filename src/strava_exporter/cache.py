@@ -42,9 +42,32 @@ def save_cache(activities: List[Dict[str, Any]]) -> None:
     Args:
         activities: Lista de atividades para salvar
     """
+    # Detectar FC máxima dos dados recentes para salvar no cache (últimos 6 meses)
+    from datetime import timedelta, timezone
+    six_months_ago = datetime.now(timezone.utc) - timedelta(days=180)
+    recent_activities = [
+        a for a in activities 
+        if a.get("start_date") and datetime.fromisoformat(a["start_date"].replace("Z", "+00:00")) >= six_months_ago
+    ]
+    
+    detected_max_hr = None
+    detection_date = None
+    
+    if recent_activities:
+        recent_max_hrs = [
+            (a.get("max_heartrate", 0), a.get("start_date", ""))
+            for a in recent_activities 
+            if a.get("max_heartrate", 0) > 0 and a.get("max_heartrate", 0) <= 200
+        ]
+        
+        if recent_max_hrs:
+            detected_max_hr, detection_date = max(recent_max_hrs, key=lambda x: x[0])
+    
     cache_data = {
         "last_update": datetime.now().isoformat(),
         "total_activities": len(activities),
+        "detected_max_hr": detected_max_hr,
+        "detected_max_hr_date": detection_date,
         "activities": activities
     }
     

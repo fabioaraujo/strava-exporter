@@ -43,6 +43,142 @@ def calculate_pace_seconds(meters: float, seconds: int) -> float:
     return seconds / km
 
 
+def format_speed(meters_per_second: float) -> str:
+    """Converte m/s para km/h formatado."""
+    if meters_per_second == 0:
+        return "N/A"
+    km_per_hour = meters_per_second * 3.6
+    return f"{km_per_hour:.1f} km/h"
+
+
+def format_heartrate(bpm: float) -> str:
+    """Formata frequência cardíaca."""
+    if bpm == 0:
+        return "N/A"
+    return f"{int(bpm)} bpm"
+
+
+def format_cadence(cadence: float, sport_type: str = "") -> str:
+    """Formata cadência (RPM para bike, SPM para corrida)."""
+    if cadence == 0:
+        return "N/A"
+    
+    # Para corrida, a API retorna passos totais, precisamos dobrar
+    if sport_type in ["Run", "Walk"]:
+        unit = "spm"
+        value = cadence * 2  # Converter para passos por minuto (ambas as pernas)
+    else:
+        unit = "rpm"
+        value = cadence
+    
+    return f"{int(value)} {unit}"
+
+
+def format_relative_effort(score: float) -> str:
+    """Formata Relative Effort (Suffer Score)."""
+    if not score or score == 0:
+        return "N/A"
+    return f"{int(score)}"
+
+
+def calculate_relative_effort(
+    moving_time: int,
+    average_heartrate: float,
+    max_heartrate: float = None,
+    sport_type: str = "",
+    user_max_hr: float = None
+) -> int:
+    """
+    Calcula uma estimativa de Relative Effort (similar ao TRIMP).
+    
+    Baseado em:
+    - Duração da atividade
+    - Frequência cardíaca média
+    - Tipo de atividade
+    - FC máxima (se disponível)
+    
+    Args:
+        moving_time: Tempo em movimento (segundos)
+        average_heartrate: FC média (bpm)
+        max_heartrate: FC máxima registrada na atividade (bpm)
+        sport_type: Tipo de atividade
+        user_max_hr: FC máxima do usuário (do perfil ou configuração)
+        
+    Returns:
+        Escore estimado de esforço (0-1000+)
+    """
+    if not average_heartrate or average_heartrate == 0 or moving_time == 0:
+        return 0
+    
+    # Usar FC máxima fornecida pelo usuário, se disponível
+    if user_max_hr and user_max_hr > 0:
+        estimated_max_hr = user_max_hr
+    else:
+        # Usar FC máxima da atividade como referência inicial
+        if max_heartrate and max_heartrate > average_heartrate:
+            estimated_max_hr = max_heartrate
+        else:
+            # Fallback: usar FC máxima padrão (220 - 35 anos)
+            estimated_max_hr = 185
+    
+    # Calcular intensidade relativa (% da FC máxima)
+    intensity = min(average_heartrate / estimated_max_hr, 1.0)  # Limitar a 100%
+    
+    # Fator de multiplicação por tipo de atividade
+    activity_factors = {
+        "Run": 1.2,      # Corrida é mais intensa
+        "Ride": 1.0,     # Ciclismo base
+        "Walk": 0.8,     # Caminhada menos intensa
+        "Workout": 1.1,  # Treino funcional
+        "Yoga": 0.6,     # Yoga menos intensa
+    }
+    
+    factor = activity_factors.get(sport_type, 1.0)
+    
+    # Fórmula baseada em TRIMP exponencial
+    # TRIMP = duration × intensity × exp(intensity)
+    duration_minutes = moving_time / 60
+    
+    # Exponencial suavizado para não explodir o valor
+    exp_factor = 1 + (intensity ** 1.5)
+    
+    # Calcular escore base
+    effort = duration_minutes * intensity * exp_factor * factor
+    
+    # Escalar para ficar na faixa típica do Strava (0-300 comum, mas pode ir além)
+    relative_effort = int(effort * 2.5)
+    
+    return relative_effort
+
+
+def format_calories(calories: float) -> str:
+    """Formata calorias."""
+    if not calories or calories == 0:
+        return "N/A"
+    return f"{int(calories)} kcal"
+
+
+def format_watts(watts: float) -> str:
+    """Formata potência em watts."""
+    if not watts or watts == 0:
+        return "N/A"
+    return f"{int(watts)} W"
+
+
+def format_achievements(count: int) -> str:
+    """Formata número de achievements."""
+    if not count or count == 0:
+        return "-"
+    return f"{count}"
+
+
+def format_prs(count: int) -> str:
+    """Formata número de PRs (Personal Records)."""
+    if not count or count == 0:
+        return "-"
+    return f"{count}"
+
+
 def calculate_records(activities: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
     """
     Calcula recordes pessoais por tipo de atividade.
@@ -67,6 +203,10 @@ def calculate_records(activities: List[Dict[str, Any]]) -> Dict[str, Dict[str, A
         distance = activity.get("distance", 0)
         moving_time = activity.get("moving_time", 0)
         elevation = activity.get("total_elevation_gain", 0)
+        max_speed = activity.get("max_speed", 0)
+        max_heartrate = activity.get("max_heartrate", 0)
+        avg_watts = activity.get("average_watts", 0)
+        max_watts = activity.get("max_watts", 0)
         
         if sport_type not in records_by_type:
             records_by_type[sport_type] = {
@@ -74,6 +214,10 @@ def calculate_records(activities: List[Dict[str, Any]]) -> Dict[str, Dict[str, A
                 "max_time": {"value": 0, "activity": None},
                 "max_elevation": {"value": 0, "activity": None},
                 "best_pace": {"value": float('inf'), "activity": None},
+                "max_speed": {"value": 0, "activity": None},
+                "max_heartrate": {"value": 0, "activity": None},
+                "max_avg_watts": {"value": 0, "activity": None},
+                "max_watts": {"value": 0, "activity": None},
             }
             # Inicializar recordes de tempo por distância
             if sport_type in distance_targets:
@@ -119,6 +263,26 @@ def calculate_records(activities: List[Dict[str, Any]]) -> Dict[str, Dict[str, A
             if pace < records["best_pace"]["value"]:
                 records["best_pace"]["value"] = pace
                 records["best_pace"]["activity"] = activity
+        
+        # Velocidade máxima
+        if max_speed > records["max_speed"]["value"]:
+            records["max_speed"]["value"] = max_speed
+            records["max_speed"]["activity"] = activity
+        
+        # Frequência cardíaca máxima
+        if max_heartrate > records["max_heartrate"]["value"]:
+            records["max_heartrate"]["value"] = max_heartrate
+            records["max_heartrate"]["activity"] = activity
+        
+        # Potência média máxima
+        if avg_watts and avg_watts > records["max_avg_watts"]["value"]:
+            records["max_avg_watts"]["value"] = avg_watts
+            records["max_avg_watts"]["activity"] = activity
+        
+        # Potência máxima
+        if max_watts and max_watts > records["max_watts"]["value"]:
+            records["max_watts"]["value"] = max_watts
+            records["max_watts"]["activity"] = activity
         
         # Melhor tempo para distâncias específicas
         if is_valid_pace and sport_type in distance_targets and distance > 0 and moving_time > 0:
@@ -196,6 +360,34 @@ def format_records_markdown(records_by_type: Dict[str, Dict[str, Any]], title: s
                 pace = format_pace(distance, moving_time)
                 markdown += f"- **Melhor Pace:** {pace}"
                 markdown += f" - *{act.get('name', 'N/A')}* ({format_date(act.get('start_date', ''))})\n"
+        
+        # Velocidade máxima
+        if records["max_speed"]["activity"]:
+            act = records["max_speed"]["activity"]
+            speed = format_speed(act.get('max_speed', 0))
+            markdown += f"- **Velocidade Máxima:** {speed}"
+            markdown += f" - *{act.get('name', 'N/A')}* ({format_date(act.get('start_date', ''))})\n"
+        
+        # Frequência cardíaca máxima
+        if records["max_heartrate"]["activity"]:
+            act = records["max_heartrate"]["activity"]
+            hr = format_heartrate(act.get('max_heartrate', 0))
+            markdown += f"- **FC Máxima:** {hr}"
+            markdown += f" - *{act.get('name', 'N/A')}* ({format_date(act.get('start_date', ''))})\n"
+        
+        # Potência média máxima (apenas para atividades com medidor de potência)
+        if records["max_avg_watts"]["activity"]:
+            act = records["max_avg_watts"]["activity"]
+            watts = format_watts(act.get('average_watts', 0))
+            markdown += f"- **Maior Potência Média:** {watts}"
+            markdown += f" - *{act.get('name', 'N/A')}* ({format_date(act.get('start_date', ''))})\n"
+        
+        # Potência máxima
+        if records["max_watts"]["activity"]:
+            act = records["max_watts"]["activity"]
+            watts = format_watts(act.get('max_watts', 0))
+            markdown += f"- **Potência Máxima:** {watts}"
+            markdown += f" - *{act.get('name', 'N/A')}* ({format_date(act.get('start_date', ''))})\n"
         
         markdown += "\n"
     
@@ -449,20 +641,136 @@ def get_year_from_activity(activity: Dict[str, Any]) -> int:
     return 0
 
 
-def activities_to_markdown_by_year(activities: List[Dict[str, Any]], output_dir: str = "atividades") -> List[str]:
+def activities_to_markdown_by_year(activities: List[Dict[str, Any]], output_dir: str = "atividades", user_max_hr: float = None) -> tuple[List[str], float, str]:
     """
     Converte lista de atividades para formato Markdown separado por ano.
     
     Args:
         activities: Lista de atividades do Strava
         output_dir: Diretório para salvar os arquivos
+        user_max_hr: FC máxima do usuário (opcional)
         
     Returns:
-        Lista de caminhos dos arquivos criados
+        Tupla com (lista de arquivos criados, FC detectada, data da detecção)
     """
     # Criar diretório se não existir
     output_path = Path(output_dir)
     output_path.mkdir(exist_ok=True)
+    
+    # Variáveis para retorno
+    detected_max_hr = None
+    detection_date = None
+    
+    # Se não fornecida, detectar FC máxima dos dados históricos RECENTES
+    if not user_max_hr:
+        # Priorizar atividades dos últimos 6 meses para FC máxima
+        from datetime import timedelta, timezone
+        six_months_ago = datetime.now(timezone.utc) - timedelta(days=180)
+        recent_activities = [
+            a for a in activities 
+            if a.get("start_date") and datetime.fromisoformat(a["start_date"].replace("Z", "+00:00")) >= six_months_ago
+        ]
+        
+        # Buscar FC máxima nas atividades recentes
+        recent_max_hrs = [
+            (a.get("max_heartrate", 0), a.get("start_date", ""), a.get("name", ""))
+            for a in recent_activities 
+            if a.get("max_heartrate", 0) > 0
+        ]
+        
+        if recent_max_hrs:
+            # Ordenar por FC máxima
+            recent_max_hrs.sort(key=lambda x: x[0], reverse=True)
+            
+            # Pegar as 10 maiores FCs
+            top_hrs = [hr for hr, _, _ in recent_max_hrs[:10]]
+            max_detected = max(top_hrs)
+            
+            # Detectar outliers (FCs irrealistas acima de 200 bpm)
+            # Usar percentil 95 em vez do máximo absoluto
+            if max_detected > 200:
+                # Filtrar valores extremos e usar percentil 95
+                realistic_hrs = [hr for hr in top_hrs if hr <= 200]
+                if not realistic_hrs:
+                    # Se todas são altas, usar percentil 95 de todas
+                    realistic_hrs = sorted([hr for hr, _, _ in recent_max_hrs])
+                    percentile_95_idx = int(len(realistic_hrs) * 0.95)
+                    detected_max_hr = realistic_hrs[percentile_95_idx]
+                    # Encontrar a data desse valor
+                    for hr, date, name in recent_max_hrs:
+                        if hr == detected_max_hr:
+                            detection_date = date
+                            break
+                    user_max_hr = detected_max_hr
+                    print(f"\n💓 FC Máxima detectada: {int(detected_max_hr)} bpm (percentil 95)")
+                    print(f"   ⚠️  Ignorados valores suspeitos acima de 200 bpm (possíveis erros de sensor)")
+                    print(f"   💡 Valor mais alto detectado: {int(max_detected)} bpm - provavelmente erro")
+                else:
+                    # Encontrar a data do valor máximo realista
+                    for hr, date, name in recent_max_hrs:
+                        if hr == max(realistic_hrs):
+                            detected_max_hr = hr
+                            detection_date = date
+                            break
+                    user_max_hr = detected_max_hr
+                    year = detection_date[:4] if detection_date else "?"
+                    print(f"\n💓 FC Máxima detectada: {int(detected_max_hr)} bpm (última vez em {year})")
+                    print(f"   ⚠️  Ignorado valor de {int(max_detected)} bpm (provável erro de sensor)")
+            else:
+                detected_max_hr, detection_date, name = recent_max_hrs[0]
+                user_max_hr = detected_max_hr
+                year = detection_date[:4] if detection_date else "?"
+                print(f"\n💓 FC Máxima detectada: {int(detected_max_hr)} bpm (última vez em {year})")
+                print(f"   Atividade: {name}")
+            
+            print(f"   Baseado nas atividades dos últimos 6 meses")
+        else:
+            # Fallback: buscar em todo histórico se não houver dados recentes
+            all_max_hrs = [
+                (a.get("max_heartrate", 0), a.get("start_date", ""))
+                for a in activities 
+                if a.get("max_heartrate", 0) > 0
+            ]
+            if all_max_hrs:
+                all_max_hrs.sort(key=lambda x: x[0], reverse=True)
+                max_detected = all_max_hrs[0][0]
+                
+                # Detectar outliers mesmo no histórico
+                if max_detected > 200:
+                    realistic_hrs = sorted([hr for hr, _ in all_max_hrs if hr <= 200])
+                    if realistic_hrs:
+                        detected_max_hr = max(realistic_hrs)
+                        # Encontrar a data
+                        for hr, date in all_max_hrs:
+                            if hr == detected_max_hr:
+                                detection_date = date
+                                break
+                    else:
+                        # Usar percentil 95
+                        all_hrs = sorted([hr for hr, _ in all_max_hrs])
+                        percentile_95_idx = int(len(all_hrs) * 0.95)
+                        detected_max_hr = all_hrs[percentile_95_idx]
+                        # Encontrar a data do percentil
+                        for hr, date in all_max_hrs:
+                            if hr == detected_max_hr:
+                                detection_date = date
+                                break
+                    
+                    user_max_hr = detected_max_hr
+                    print(f"\n💓 FC Máxima detectada: {int(detected_max_hr)} bpm")
+                    print(f"   ⚠️  Ignorado valor de {int(max_detected)} bpm (provável erro de sensor)")
+                    print(f"   ⚠️  Dados antigos - considere configurar USER_MAX_HR no .env")
+                else:
+                    detected_max_hr, detection_date = all_max_hrs[0]
+                    user_max_hr = detected_max_hr
+                    year = detection_date[:4] if detection_date else "?"
+                    print(f"\n💓 FC Máxima detectada: {int(detected_max_hr)} bpm (registrada em {year})")
+                    print(f"   ⚠️  Dado antigo - considere configurar USER_MAX_HR no .env se souber sua FC atual")
+            else:
+                # Usar FC máxima baseada em idade (220 - 40 = 180)
+                user_max_hr = 180
+                print(f"\n💓 Sem dados de FC disponíveis. Usando FC baseada em idade: 180 bpm (220 - 40 anos)")
+                print(f"   💡 Configure USER_MAX_HR no .env para cálculos mais precisos")
     
     # Agrupar atividades por ano
     activities_by_year: Dict[int, List[Dict[str, Any]]] = defaultdict(list)
@@ -484,7 +792,10 @@ def activities_to_markdown_by_year(activities: List[Dict[str, Any]], output_dir:
         
         # Criar markdown
         markdown = f"# Atividades do Strava - {year}\n\n"
-        markdown += f"**Total de atividades:** {len(year_activities)}\n\n"
+        markdown += f"**Total de atividades:** {len(year_activities)}\n"
+        if user_max_hr:
+            markdown += f"**FC Máxima utilizada nos cálculos:** {int(user_max_hr)} bpm\n"
+        markdown += "\n"
         
         markdown += "## Estatísticas do Ano\n\n"
         markdown += f"- **Distância total:** {format_distance(total_distance)}\n"
@@ -498,15 +809,25 @@ def activities_to_markdown_by_year(activities: List[Dict[str, Any]], output_dir:
             activities_by_type[sport_type].append(activity)
         
         markdown += "## Resumo por Tipo de Atividade\n\n"
-        markdown += "| Tipo | Quantidade | Distância Total | Tempo Total |\n"
-        markdown += "|------|------------|-----------------|-------------|\n"
+        markdown += "| Tipo | Quantidade | Distância Total | Tempo Total | Vel. Média | FC Média | Cadência Média |\n"
+        markdown += "|------|------------|-----------------|-------------|------------|----------|----------------|\n"
         
         for sport_type in sorted(activities_by_type.keys()):
             type_activities = activities_by_type[sport_type]
             type_distance = sum(a.get("distance", 0) for a in type_activities)
             type_time = sum(a.get("moving_time", 0) for a in type_activities)
             
-            markdown += f"| {sport_type} | {len(type_activities)} | {format_distance(type_distance)} | {format_duration(type_time)} |\n"
+            # Calcular médias (apenas atividades com dados)
+            speeds = [a.get("average_speed", 0) for a in type_activities if a.get("average_speed", 0) > 0]
+            avg_speed = sum(speeds) / len(speeds) if speeds else 0
+            
+            hrs = [a.get("average_heartrate", 0) for a in type_activities if a.get("average_heartrate", 0) > 0]
+            avg_hr = sum(hrs) / len(hrs) if hrs else 0
+            
+            cadences = [a.get("average_cadence", 0) for a in type_activities if a.get("average_cadence", 0) > 0]
+            avg_cadence = sum(cadences) / len(cadences) if cadences else 0
+            
+            markdown += f"| {sport_type} | {len(type_activities)} | {format_distance(type_distance)} | {format_duration(type_time)} | {format_speed(avg_speed)} | {format_heartrate(avg_hr)} | {format_cadence(avg_cadence, sport_type)} |\n"
         
         markdown += "\n"
         
@@ -525,8 +846,8 @@ def activities_to_markdown_by_year(activities: List[Dict[str, Any]], output_dir:
         markdown += format_records_comparison(year_records, all_time_records, year)
         
         markdown += "## Todas as Atividades\n\n"
-        markdown += "| Data | Nome | Tipo | Distância | Duração | Pace | Elevação | Kudos |\n"
-        markdown += "|------|------|------|-----------|---------|------|----------|-------|\n"
+        markdown += "| Data | Nome | Tipo | Distância | Duração | Vel. Média | FC Média | Cadência | Relative Effort | Calorias | Potência | PRs |\n"
+        markdown += "|------|------|------|-----------|---------|------------|----------|----------|-----------------|----------|----------|-----|\n"
         
         for activity in year_activities:
             name = activity.get("name", "N/A")
@@ -534,16 +855,33 @@ def activities_to_markdown_by_year(activities: List[Dict[str, Any]], output_dir:
             distance = activity.get("distance", 0)
             moving_time = activity.get("moving_time", 0)
             date = activity.get("start_date", "N/A")
-            elevation = activity.get("total_elevation_gain", 0)
-            kudos = activity.get("kudos_count", 0)
+            avg_speed = activity.get("average_speed", 0)
+            avg_hr = activity.get("average_heartrate", 0)
+            max_hr = activity.get("max_heartrate", 0)
+            avg_cadence = activity.get("average_cadence", 0)
+            suffer_score = activity.get("suffer_score")
+            calories = activity.get("calories")
+            avg_watts = activity.get("average_watts")
+            pr_count = activity.get("pr_count", 0)
+            
+            # Calcular Relative Effort localmente se não disponível
+            if not suffer_score and avg_hr:
+                suffer_score = calculate_relative_effort(
+                    moving_time, avg_hr, max_hr, sport_type, user_max_hr
+                )
             
             date_formatted = format_date(date) if date != "N/A" else "N/A"
             distance_formatted = format_distance(distance)
             duration_formatted = format_duration(moving_time)
-            pace_formatted = format_pace(distance, moving_time) if distance > 0 else "N/A"
-            elevation_formatted = f"{elevation:.0f} m"
+            speed_formatted = format_speed(avg_speed)
+            hr_formatted = format_heartrate(avg_hr)
+            cadence_formatted = format_cadence(avg_cadence, sport_type)
+            effort_formatted = format_relative_effort(suffer_score)
+            calories_formatted = format_calories(calories)
+            watts_formatted = format_watts(avg_watts)
+            pr_formatted = format_prs(pr_count)
             
-            markdown += f"| {date_formatted} | {name} | {sport_type} | {distance_formatted} | {duration_formatted} | {pace_formatted} | {elevation_formatted} | {kudos} |\n"
+            markdown += f"| {date_formatted} | {name} | {sport_type} | {distance_formatted} | {duration_formatted} | {speed_formatted} | {hr_formatted} | {cadence_formatted} | {effort_formatted} | {calories_formatted} | {watts_formatted} | {pr_formatted} |\n"
         
         # Salvar arquivo do ano
         output_file = output_path / f"strava_{year}.md"
@@ -560,7 +898,7 @@ def activities_to_markdown_by_year(activities: List[Dict[str, Any]], output_dir:
     create_index_file(activities_by_year, output_path)
     created_files.append(str(output_path / "README.md"))
     
-    return created_files
+    return created_files, detected_max_hr, detection_date
 
 
 def create_annual_statistics_file(activities_by_year: Dict[int, List[Dict[str, Any]]], output_path: Path) -> None:

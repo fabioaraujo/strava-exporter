@@ -7,6 +7,9 @@ Projeto para exportação de atividades do Strava para Markdown em formato tabul
 - 🔐 Autenticação OAuth2 com a API do Strava
 - 📥 Download incremental de atividades (busca apenas novas)
 - 💾 Sistema de cache local para não baixar tudo sempre
+- � **Retry automático** com tratamento de rate limit (429)
+- ⏸️ **Pausar e continuar** processamento (Ctrl+C seguro)
+- 💾 **Salvamento incremental** do cache a cada 10-50 atividades
 - 📅 Arquivos separados por ano para melhor organização
 - 📊 Exportação para Markdown em formato de tabela
 - 📈 Estatísticas gerais e por ano (distância, tempo, médias)
@@ -15,6 +18,8 @@ Projeto para exportação de atividades do Strava para Markdown em formato tabul
 - 🏆 Recordes pessoais por ano e históricos com comparação lado a lado
 - ⏱️ Tempos recordes para distâncias específicas (1km, 5km, 10km, etc)
 - 🔍 Filtros inteligentes que eliminam atividades com dados incorretos
+- 💪 **Métricas PRO**: Relative Effort, Calorias, Potência, FC, Cadência
+- 🎯 Achievements e Personal Records (PRs)
 
 ## 🚀 Tecnologias
 

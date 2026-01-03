@@ -55,6 +55,13 @@ def calculate_records(activities: List[Dict[str, Any]]) -> Dict[str, Dict[str, A
     """
     records_by_type: Dict[str, Dict[str, Any]] = {}
     
+    # Definir distâncias alvo por tipo de atividade (em metros)
+    distance_targets = {
+        "Ride": [1000, 5000, 10000, 20000],
+        "Run": [1000, 5000, 10000],
+        "Walk": [1000, 3000, 5000],
+    }
+    
     for activity in activities:
         sport_type = activity.get("sport_type", activity.get("type", "Outro"))
         distance = activity.get("distance", 0)
@@ -68,30 +75,74 @@ def calculate_records(activities: List[Dict[str, Any]]) -> Dict[str, Dict[str, A
                 "max_elevation": {"value": 0, "activity": None},
                 "best_pace": {"value": float('inf'), "activity": None},
             }
+            # Inicializar recordes de tempo por distância
+            if sport_type in distance_targets:
+                for target_dist in distance_targets[sport_type]:
+                    key = f"best_time_{target_dist}m"
+                    records_by_type[sport_type][key] = {"value": float('inf'), "activity": None}
         
         records = records_by_type[sport_type]
         
-        # Maior distância
-        if distance > records["max_distance"]["value"]:
+        # Definir pace máximo razoável por tipo de atividade (em segundos/km)
+        max_pace_limits = {
+            "Ride": 900,    # 15 min/km máximo para bike (muito lento em subidas íngremes)
+            "Run": 1200,     # 20 min/km máximo para corrida (mais lento já seria caminhada)
+            "Walk": 1200,   # 20 min/km máximo para caminhada
+        }
+        
+        # Verificar se o pace da atividade é válido
+        is_valid_pace = True
+        if distance > 0 and moving_time > 0:
+            current_pace = calculate_pace_seconds(distance, moving_time)
+            max_pace = max_pace_limits.get(sport_type, 1800)
+            if current_pace > max_pace:
+                is_valid_pace = False
+        
+        # Maior distância (apenas se pace válido)
+        if is_valid_pace and distance > records["max_distance"]["value"]:
             records["max_distance"]["value"] = distance
             records["max_distance"]["activity"] = activity
         
-        # Maior tempo
-        if moving_time > records["max_time"]["value"]:
+        # Maior tempo (apenas se pace válido)
+        if is_valid_pace and moving_time > records["max_time"]["value"]:
             records["max_time"]["value"] = moving_time
             records["max_time"]["activity"] = activity
         
-        # Maior elevação
-        if elevation > records["max_elevation"]["value"]:
+        # Maior elevação (apenas se pace válido)
+        if is_valid_pace and elevation > records["max_elevation"]["value"]:
             records["max_elevation"]["value"] = elevation
             records["max_elevation"]["activity"] = activity
         
-        # Melhor pace (apenas para atividades com distância)
-        if distance > 0:
+        # Melhor pace (apenas para atividades com distância e pace válido)
+        if is_valid_pace and distance > 0:
             pace = calculate_pace_seconds(distance, moving_time)
             if pace < records["best_pace"]["value"]:
                 records["best_pace"]["value"] = pace
                 records["best_pace"]["activity"] = activity
+        
+        # Melhor tempo para distâncias específicas
+        if is_valid_pace and sport_type in distance_targets and distance > 0 and moving_time > 0:
+            for target_dist in distance_targets[sport_type]:
+                # Apenas considerar se a atividade tem pelo menos a distância alvo
+                if distance >= target_dist:
+                    key = f"best_time_{target_dist}m"
+                    # Calcular o tempo estimado para essa distância (assumindo pace constante)
+                    estimated_time = (target_dist / distance) * moving_time
+                    
+                    # Definir tempos mínimos razoáveis por distância (em segundos)
+                    # para evitar registros incorretos
+                    min_times = {
+                        1000: 120,    # 1km: mínimo 2 minutos (pace 2:00/km - muito rápido mas possível)
+                        3000: 420,    # 3km: mínimo 7 minutos (pace 2:20/km)
+                        5000: 720,    # 5km: mínimo 12 minutos (pace 2:24/km)
+                        10000: 1500,  # 10km: mínimo 25 minutos (pace 2:30/km)
+                        20000: 3000,  # 20km: mínimo 50 minutos (pace 2:30/km)
+                    }
+                    
+                    # Apenas atualizar se o tempo é razoável
+                    if estimated_time >= min_times.get(target_dist, 0) and estimated_time < records[key]["value"]:
+                        records[key]["value"] = estimated_time
+                        records[key]["activity"] = activity
     
     return records_by_type
 
@@ -179,19 +230,20 @@ def format_records_comparison(year_records: Dict[str, Dict[str, Any]], all_time_
         year_rec = year_records.get(sport_type, {})
         all_rec = all_time_records.get(sport_type, {})
         
-        # Maior distância
-        year_dist = ""
-        if year_rec.get("max_distance", {}).get("activity"):
-            act = year_rec["max_distance"]["activity"]
-            year_dist = f"{format_distance(act.get('distance', 0))} - *{act.get('name', 'N/A')}* ({format_date(act.get('start_date', ''))})"
-        
-        all_dist = ""
-        if all_rec.get("max_distance", {}).get("activity"):
-            act = all_rec["max_distance"]["activity"]
-            all_dist = f"{format_distance(act.get('distance', 0))} - *{act.get('name', 'N/A')}* ({format_date(act.get('start_date', ''))})"
-        
-        if year_dist or all_dist:
-            markdown += f"| **Maior Distância** | {year_dist or 'N/A'} | {all_dist or 'N/A'} |\n"
+        # Maior distância (não mostrar para Workout e Yoga)
+        if sport_type not in ["Workout", "Yoga"]:
+            year_dist = ""
+            if year_rec.get("max_distance", {}).get("activity"):
+                act = year_rec["max_distance"]["activity"]
+                year_dist = f"{format_distance(act.get('distance', 0))} - *{act.get('name', 'N/A')}* ({format_date(act.get('start_date', ''))})"
+            
+            all_dist = ""
+            if all_rec.get("max_distance", {}).get("activity"):
+                act = all_rec["max_distance"]["activity"]
+                all_dist = f"{format_distance(act.get('distance', 0))} - *{act.get('name', 'N/A')}* ({format_date(act.get('start_date', ''))})"
+            
+            if year_dist or all_dist:
+                markdown += f"| **Maior Distância** | {year_dist or 'N/A'} | {all_dist or 'N/A'} |\n"
         
         # Maior tempo
         year_time = ""
@@ -224,6 +276,34 @@ def format_records_comparison(year_records: Dict[str, Dict[str, Any]], all_time_
         
         if year_elev or all_elev:
             markdown += f"| **Maior Elevação** | {year_elev or 'N/A'} | {all_elev or 'N/A'} |\n"
+        
+        # Adicionar tempos para distâncias específicas
+        distance_targets = {
+            "Ride": [1000, 5000, 10000, 20000],
+            "Run": [1000, 5000, 10000],
+            "Walk": [1000, 3000, 5000],
+        }
+        
+        if sport_type in distance_targets:
+            for target_dist in distance_targets[sport_type]:
+                key = f"best_time_{target_dist}m"
+                dist_km = target_dist / 1000
+                
+                year_best_time = ""
+                if year_rec.get(key, {}).get("activity") and year_rec.get(key, {}).get("value") != float('inf'):
+                    time_val = year_rec[key]["value"]
+                    act = year_rec[key]["activity"]
+                    year_best_time = f"{format_duration(int(time_val))} - *{act.get('name', 'N/A')}* ({format_date(act.get('start_date', ''))})"
+                
+                all_best_time = ""
+                if all_rec.get(key, {}).get("activity") and all_rec.get(key, {}).get("value") != float('inf'):
+                    time_val = all_rec[key]["value"]
+                    act = all_rec[key]["activity"]
+                    all_best_time = f"{format_duration(int(time_val))} - *{act.get('name', 'N/A')}* ({format_date(act.get('start_date', ''))})"
+                
+                if year_best_time or all_best_time:
+                    label = f"**Melhor Tempo {dist_km:.0f}km**" if dist_km >= 1 else f"**Melhor Tempo {dist_km}km**"
+                    markdown += f"| {label} | {year_best_time or 'N/A'} | {all_best_time or 'N/A'} |\n"
         
         markdown += "\n"
     

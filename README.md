@@ -12,6 +12,9 @@ Projeto para exportação de atividades do Strava para Markdown em formato tabul
 - 📈 Estatísticas gerais e por ano (distância, tempo, médias)
 - 🏃 Agrupamento por tipo de atividade (corrida, ciclismo, etc)
 - ⚡ Cálculo automático de pace, duração formatada e muito mais
+- 🏆 Recordes pessoais por ano e históricos com comparação lado a lado
+- ⏱️ Tempos recordes para distâncias específicas (1km, 5km, 10km, etc)
+- 🔍 Filtros inteligentes que eliminam atividades com dados incorretos
 
 ## 🚀 Tecnologias
 
@@ -116,7 +119,39 @@ O script cria um diretório `atividades/` com:
 Cada arquivo anual contém:
 - Estatísticas do ano
 - Resumo por tipo de atividade
+- Recordes pessoais do ano e históricos
 - Tabela completa de todas as atividades
+
+### Recordes Pessoais
+
+Os arquivos incluem seções de recordes pessoais por tipo de atividade com:
+
+#### Métricas Principais
+- **Maior Distância** - Atividade mais longa
+- **Maior Tempo** - Atividade de maior duração
+- **Maior Elevação** - Atividade com mais ganho de elevação
+
+#### Tempos por Distância
+- **Ride (Ciclismo)**: 1km, 5km, 10km, 20km
+- **Run (Corrida)**: 1km, 5km, 10km
+- **Walk (Caminhada)**: 1km, 3km, 5km
+
+#### Filtros de Validação
+
+Para garantir recordes precisos, o sistema aplica filtros automáticos:
+
+**Pace Máximo Aceitável** (tempos mais lentos que isso são ignorados):
+- **Ride e Run**: 15 min/km (~4 km/h)
+- **Walk**: 20 min/km (~3 km/h)
+
+**Tempos Mínimos por Distância**:
+- **1km**: mínimo 2 minutos (pace 2:00/km)
+- **3km**: mínimo 7 minutos (pace 2:20/km)
+- **5km**: mínimo 12 minutos (pace 2:24/km)
+- **10km**: mínimo 25 minutos (pace 2:30/km)
+- **20km**: mínimo 50 minutos (pace 2:30/km)
+
+Esses filtros eliminam atividades onde o app ficou ligado parado, gerando paces absurdos ou tempos irrealistas.
 
 ### Sistema de Cache
 - **strava_cache.json** - Cache local das atividades
